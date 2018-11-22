@@ -10,8 +10,8 @@ def calculate_diff(old, new):
     return np.sqrt(a.dot(a))
 
 
-I = 2  # tipos de cirugías
-E = 3  # cantidad de camas
+I = 1  # tipos de cirugías
+E = 10  # cantidad de camas
 
 
 def k(x): return 3 * x  # costo por posponer agendamiento urgente
@@ -46,8 +46,8 @@ def rec(assigns, total, i=0):
 def state_generator():
     # returns ((u_u, u_nu, w)_i, ...) \forall i
     states = set()
-    max_length_urgent = E
-    max_length_no_urgent = E * 2
+    max_length_urgent = E + 1
+    max_length_no_urgent = E + 1
     urgs_gen = rec([0 for i in range(I)], max_length_urgent)
     for urgs in urgs_gen:
         no_urgs_gen = rec([0 for i in range(I)], max_length_no_urgent)
@@ -71,6 +71,9 @@ def x(s):
     nagns = I * 2
     gen = rec([i for i in range(nagns)], total)
     for options in gen:
+        if sum(options) < total: 
+            # we dont consider the ones that left beds empty
+            continue
         acc = []
         for i in range(I):
             urgs = min(options[i], s[0][i])
@@ -103,9 +106,9 @@ def P_2(w1, a):
         return 0.5
     return 0
 
+# def a(i, w, x):
+#     return w[i] + sum(x[i][j] for j in range(len('urgente', 'no-urgente')))
 
-def a(i, w, x):
-    return w[i] + sum(x[i][j] for j in range(len('urgente', 'no-urgente')))
 
 # def P_2(s1, i, x):
 #     g = s1[1][i]
@@ -116,16 +119,16 @@ def a(i, w, x):
 def P(s1, s, x):
     def a(i):
         w_i, x_i = s[2][i], x[i]
-        return w_i + sum(x_i[j] for j in range(len(('urgente', 'no-urgente'))))
+        return w_i + x_i[0] + x_i[1] # sum(x_i[j] for j in range(len(('urgente', 'no-urgente'))))
     p = 1
     # probabilidad cola
     for i in range(I):
-        for j in range(len(('urgente', 'no-urgente'))):
+        for j in range(2):
             p *= P_1(s[j][i] - x[i][j] - s1[j][i])
     # probabilidad ocupados
-    # w1 = s1[2]
-    # for i in range(I):
-    #     p *= P_2(w1[i], a(i))
+    w1 = s1[2]
+    for i in range(I):
+        p *= P_2(w1[i], a(i))
     # if p != 0:
     #     print(p)
     return p
@@ -156,7 +159,12 @@ def get_lengths(s):
 
 def value_iteration(epsilon, lambd):
     def Esp(s, x):
-        return sum(P(S[i], s, x) * Vn[i] for i in range(len(S)))
+        ps = np.empty(len(S))
+        for i in range(len(S)):
+            ps[i] = P(S[i], s, x)
+        # ps = np.array([P(S[i], s, x) for i in range(len(S))])
+        return np.dot(Vn, ps)
+        # return sum(P(S[i], s, x) * Vn[i] for i in range(len(S)))
     Vn = np.full((len(S), ), 100)
     Vn1 = np.zeros((len(S), ))
     lim = limit(epsilon, lambd)
