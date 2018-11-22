@@ -19,17 +19,8 @@ def k(x): return 3 * x  # costo por posponer agendamiento urgente
 
 def h(x): return 1 * x
 
-
-# r = {'lambda' + str(i): 2 for i in range(I)}  # duración de la operación
-
-q = {
-    'urgente': {i: 2 for i in range(I)},
-    'no-urgente': {i: 2 for i in range(I)}
-}  # llegada de pacientes
-
 s_example = (
-    tuple([0 for i in range(I)]),  # queue urgents
-    tuple([0 for i in range(I)]),  # queue not urgents
+    tuple([0 for i in range(I)]),  # queue
     tuple([0 for i in range(I)])  # occupied
 )
 # S['u'][2][3]['urgente']
@@ -46,15 +37,12 @@ def rec(assigns, total, i=0):
 def state_generator():
     # returns ((u_u, u_nu, w)_i, ...) \forall i
     states = set()
-    max_length_urgent = E + 1
-    max_length_no_urgent = E + 1
-    urgs_gen = rec([0 for i in range(I)], max_length_urgent)
+    max_length_queue = E * 2
+    urgs_gen = rec([0 for i in range(I)], max_length_queue)
     for urgs in urgs_gen:
-        no_urgs_gen = rec([0 for i in range(I)], max_length_no_urgent)
-        for no_urgs in no_urgs_gen:
-            occupied_gen = rec([0 for i in range(I)], E)
-            for w in occupied_gen:
-                states.add((urgs, no_urgs, w))
+        occupied_gen = rec([0 for i in range(I)], E)
+        for w in occupied_gen:
+            states.add((urgs, w))
     return list(states)
 
 
@@ -65,21 +53,20 @@ def x(s):
     # so we would always use all the beds, or finish the queue
     # length_queue = sum(s[j][i] for i in range(I)
     #                    for j in range(len(('urgente', 'no-urgente'))))
-    total = min(E - sum(s[2]), sum(s[0]) + sum(s[1]))
+    total = min(E - sum(s[2]), sum(s[0])))
     # total = E - sum(s[2])
 
-    nagns = I * 2
+    nagns = I
     gen = rec([i for i in range(nagns)], total)
     for options in gen:
-        if sum(options) < total: 
+        # if sum(options) < total: 
             # we dont consider the ones that left beds empty
-            continue
+            # continue
         acc = []
         for i in range(I):
             urgs = min(options[i], s[0][i])
-            nourgs = min(options[i+I], s[1][i])
-            acc.append((urgs, nourgs))
-        accs.add(tuple(acc))
+            acc.append(urgs)
+        accs.add(acc)
     return accs
 
 
@@ -118,15 +105,14 @@ def P_2(w1, a):
 
 def P(s1, s, x):
     def a(i):
-        w_i, x_i = s[2][i], x[i]
-        return w_i + x_i[0] + x_i[1] # sum(x_i[j] for j in range(len(('urgente', 'no-urgente'))))
+        w = s[1]
+        return w[i] + x[i]
     p = 1
     # probabilidad cola
     for i in range(I):
-        for j in range(2):
-            p *= P_1(s[j][i] - x[i][j] - s1[j][i])
+        p *= P_1(s[i] - x[i] - s1[i])
     # probabilidad ocupados
-    w1 = s1[2]
+    w1 = s1[1]
     for i in range(I):
         p *= P_2(w1[i], a(i))
     # if p != 0:
