@@ -1,6 +1,6 @@
 # coding: utf-8
 from prettytable import PrettyTable
-from scipy.stats import poisson
+from scipy.stats import poisson, binom, expon
 from math import factorial, exp, inf
 import numpy as np
 
@@ -10,14 +10,16 @@ def calculate_diff(old, new):
     return np.sqrt(a.dot(a))
 
 
-I = 1  # tipos de cirugías
-E = 10  # cantidad de camas
+I = 2  # tipos de cirugías
+E = 4  # cantidad de camas
 
 
-def k(x): return 3 * x  # costo por posponer agendamiento urgente
+# def k(i, x): return 3 * x + i  # costo por posponer agendamiento urgente
 
 
-def h(x): return 1 * x
+def h(i, x): 
+    return x
+
 
 s_example = (
     tuple([0 for i in range(I)]),  # queue
@@ -39,8 +41,8 @@ def state_generator():
     states = set()
     max_length_queue = E * 2
     urgs_gen = rec([0 for i in range(I)], max_length_queue)
+    occupied_gen = list(rec([0 for i in range(I)], E))
     for urgs in urgs_gen:
-        occupied_gen = rec([0 for i in range(I)], E)
         for w in occupied_gen:
             states.add((urgs, w))
     return list(states)
@@ -49,12 +51,7 @@ def state_generator():
 def x(s):
     # returns ((urgent, no-urgent), ...)
     accs = set()
-    # the model can be simplified if we assume we alaways use all the capacity
-    # so we would always use all the beds, or finish the queue
-    # length_queue = sum(s[j][i] for i in range(I)
-    #                    for j in range(len(('urgente', 'no-urgente'))))
-    total = min(E - sum(s[2]), sum(s[0])))
-    # total = E - sum(s[2])
+    total = E - sum(s[1])
 
     nagns = I
     gen = rec([i for i in range(nagns)], total)
@@ -62,18 +59,9 @@ def x(s):
         # if sum(options) < total: 
             # we dont consider the ones that left beds empty
             # continue
-        acc = []
-        for i in range(I):
-            urgs = min(options[i], s[0][i])
-            acc.append(urgs)
+        acc = tuple(min(options[i], s[0][i]) for i in range(I))
         accs.add(acc)
     return accs
-
-
-def Pri(g, a):
-    lamb_i = 2.58
-    comb = factorial(a) / factorial(g) / factorial(a-g)
-    return comb * (1-exp(-lamb_i))**g * (exp(-lamb_i))**(a-g)
 
 
 def P_1(llegan):
@@ -84,14 +72,25 @@ def P_1(llegan):
         return 0.5
     return 0
 
+### hashing probabilities
+### calculation is very expensive
+exponential = [expon.cdf(1, scale=5*(i+1)) for i in range(I)]
 
-def P_2(w1, a):
-    # completar acá con algo más real
-    if w1 == 1:
-        return 0.5
-    if w1 == 2:
-        return 0.5
-    return 0
+dic = {}
+for i in range(I):
+    for a in range(E):
+        for w1 in range(a+1):
+            p = exponential[i]
+            dic[(a - w1, i)] = binom.pmf(a - w1, a, p)
+
+def P_2(w1, a, i):
+    return dic.get((a - w1, i), 0)
+
+
+    # p = exponential[i]
+    # dic[(w1, a, i)] = dic.get((w1, a, i), 0) + 1
+    # return binom.pmf(w1, a, p)
+    
 
 # def a(i, w, x):
 #     return w[i] + sum(x[i][j] for j in range(len('urgente', 'no-urgente')))
@@ -105,61 +104,61 @@ def P_2(w1, a):
 
 def P(s1, s, x):
     def a(i):
-        w = s[1]
-        return w[i] + x[i]
+        return s[1][i] + x[i]
     p = 1
-    # probabilidad cola
+    # probabilidad cola	
     for i in range(I):
-        p *= P_1(s[i] - x[i] - s1[i])
+        u, u1 = s[0], s1[0]
+        p *= P_1(u[i] - x[i] - u1[i])
     # probabilidad ocupados
     w1 = s1[1]
     for i in range(I):
-        p *= P_2(w1[i], a(i))
+        p *= P_2(w1[i], a(i), i)
     # if p != 0:
     #     print(p)
     return p
     # return poisson.pmf(x, 1/2.58/20, 0)
 
 
-def c(lengths,x):
-    if lengths[0] - sum(list(zip(*x))[0]) < 0:
-        # print(s[0])
+def c(s,x):
+    if sum(s[0]) - sum(x) < 0:
+        print(s[0])
+        print(x)
         # print(list(zip(*x))[0], 'blabla')
         raise Exception
     # cost = 0
-    x_trasp = list(zip(*x))
     # cost += k(lengths[0] - sum(x_trasp[0])) 
     # cost += h(lengths[1] - sum(x_trasp[1]))
-    return k(lengths[0] - sum(x_trasp[0])) + h(lengths[1] - sum(x_trasp[1]))
+    c = 0
+    for i in range(I):
+        c += h(i, sum(s[0]) - sum(x))
+    return c
+    # return k(lengths[0] - sum(x_trasp[0])) + h(lengths[1] - sum(x_trasp[1]))
 
 
 def limit(epsilon, lambd):
     return epsilon * (1 - lambd) / (2 * lambd)
 
 
-def get_lengths(s):
-    length_queue_urgents = sum(s[0])
-    length_queue_not_urgents = sum(s[1])
-    return length_queue_urgents, length_queue_not_urgents
 
 
 def value_iteration(epsilon, lambd):
     def Esp(s, x):
-        ps = np.empty(len(S))
-        for i in range(len(S)):
+        ps = np.empty(states_size)
+        for i in range(states_size):
+            # if S[i][1] 
             ps[i] = P(S[i], s, x)
-        # ps = np.array([P(S[i], s, x) for i in range(len(S))])
+        # ps = np.array([P(S[i], s, x) for i in range(states_size)])
         return np.dot(Vn, ps)
-        # return sum(P(S[i], s, x) * Vn[i] for i in range(len(S)))
-    Vn = np.full((len(S), ), 100)
-    Vn1 = np.zeros((len(S), ))
+        # return sum(P(S[i], s, x) * Vn[i] for i in range(states_size))
+    Vn = np.full((states_size, ), 100)
+    Vn1 = np.empty((states_size, ))
     lim = limit(epsilon, lambd)
     while True:
-        for i in range(len(S)):
+        for i in range(states_size):
             # print('whaat')
             s = S[i]
-            lengths = get_lengths(s)
-            best = min((c(lengths,x) + lambd * Esp(s, x), x) for x in x(s))
+            best = min((c(s, x) + lambd * Esp(s, x), x) for x in x(s))
             Vn1[i] = best[0]
         diff = calculate_diff(Vn, Vn1)
         print('Diff:', diff)
@@ -169,15 +168,16 @@ def value_iteration(epsilon, lambd):
         np.copyto(Vn, Vn1)
 
     Vn = Vn1
-    return [min((c(get_lengths(s), x) + lambd * Esp(s, x), x) for x in x(s)) for s in S]
+    return [min((c(s, x) + lambd * Esp(s, x), x) for x in x(s)) for s in S]
 
 
 s = [
     tuple([10 for i in range(I)]),
-    tuple([10 for i in range(I)]),
     tuple([0 for i in range(I)])
 ]
 
+# for i in range(15):
+#     print(P_2(0,7,i))
 # print(*sorted(x(s)), sep='\n')
 # S()
 print('beds:', E)
@@ -186,28 +186,56 @@ print('number of actions:', len(x(s)))
 # print(limit(0.3,0.9))
 
 S = state_generator()
-print('number of states:', len(state_generator()))
+states_size = len(S)
+print('number of states:', states_size)
 
 epsilon = 0.99
 lambd = 0.9
 results = value_iteration(epsilon, lambd)
 
+d = [i[1] for i in results]
+
 
 def print_results(d, s):
     t = PrettyTable(['Type', '', 'Queue', 'Assigned', 'Previously occupied', 'Capacity'])
-    # r = '                              queue             assigned\n'
     for i in range(I):
         t.add_row(
-            [f'{i}', 'Urgent', f'{s[0][i]}', f'{d[i][0]}', '', ''])
-        t.add_row(
-            [f'{i}', 'Not urgent', f'{s[1][i]}', f'{d[i][1]}', '', ''])
+            [f'{i}', '', f'{s[0][i]}', f'{d[i]}', f'{s[1][i]}', ''])
     t.add_row(
-    ['', f'Total Use', '', f'{sum(sum(d[j]) for j in range(I))}', f'{sum(s[2])}', E])
+    ['', f'Total Use', '', f'{sum(d)}', f'{sum(s[1])}', E])
     print(t)
     return t
 
-for i in range(5):
-    print_results(results[i][1], S[i])
+for s in range(10):
+    print_results(results[s][1], S[s])
+
+
+def occupied(s):
+    return sum(s[1])
+
+
+def queue(s):
+    return sum(s[0])
+
+def queue_type(i, s):
+    return s[0][i]
+
+def all_type_waiting(s):
+    for i in range(I):
+        if queue_type(i,s) == 0:
+            return False
+    return True
+
+cont = 0
+for i in range(states_size):
+    # for i in range(I)
+    s = S[i]
+    if occupied(s) < E - 1 and all_type_waiting(s):
+        cont += 1
+        print_results(d[i], S[i])
+        if cont == 10: break
+
+    # if sum(d[i]) + sum(S[i][1]) != E and sum(S[i][0]) > :
 
 # print(*sorted(state_generator()), sep='\n')
 
