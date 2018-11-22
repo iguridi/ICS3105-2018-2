@@ -108,7 +108,7 @@ def policy_iteration(factor):
 #%%
 import matplotlib.pyplot as plt
 
-factor = 0.9
+factor = 0.1
 
 Vs2 = value_iteration(factor)
 s0, s1, s2 = zip(*Vs2)
@@ -128,7 +128,7 @@ legend.get_frame().set_facecolor('w')
 plt.savefig(f'graph.p3.2.a.{factor}.png', dpi=150, format='png', bbox_inches='tight', )
 
 #%%
-factor = 0.9
+factor = 0.1
 ds = policy_iteration(factor)
 print(ds)
 
