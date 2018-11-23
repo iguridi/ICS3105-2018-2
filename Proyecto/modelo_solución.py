@@ -37,6 +37,7 @@ def state_generator():
             states.add((urgs, w))
     return list(states)
 
+
 ARRIVAL_RATE_PER_DAY = [5, 1]
 DEPARTURE_RATE_PER_DAY = [3, 1]
 
@@ -51,6 +52,7 @@ def x(s):
         acc = tuple(min(options[i], s[0][i]) for i in range(I))
         accs.add(acc)
     return accs
+
 
 def P_1(llegan, i):
     return dic2.get((llegan, i), 0)
@@ -71,6 +73,7 @@ for i in range(I):
         for w1 in range(a+1):
             p = exponential[i]
             dic[(a - w1, i)] = binom.pmf(a - w1, a, p)
+
 
 def P_2(w1, a, i):
     return dic.get((a - w1, i), 0)
@@ -101,7 +104,6 @@ def c(s,x):
 
 def limit(epsilon, lambd):
     return epsilon * (1 - lambd) / (2 * lambd)
-
 
 
 def value_iteration(epsilon, lambd):
