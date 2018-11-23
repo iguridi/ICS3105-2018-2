@@ -14,18 +14,8 @@ I = 2  # tipos de cirugías
 E = 4  # cantidad de camas
 
 
-# def k(i, x): return 3 * x + i  # costo por posponer agendamiento urgente
-
-
 def h(i, x): 
     return x
-
-
-s_example = (
-    tuple([0 for i in range(I)]),  # queue
-    tuple([0 for i in range(I)])  # occupied
-)
-# S['u'][2][3]['urgente']
 
 
 def rec(assigns, total, i=0):
@@ -47,6 +37,8 @@ def state_generator():
             states.add((urgs, w))
     return list(states)
 
+ARRIVAL_RATE_PER_DAY = [5, 1]
+DEPARTURE_RATE_PER_DAY = [3, 1]
 
 def x(s):
     # returns ((urgent, no-urgent), ...)
@@ -56,25 +48,22 @@ def x(s):
     nagns = I
     gen = rec([i for i in range(nagns)], total)
     for options in gen:
-        # if sum(options) < total: 
-            # we dont consider the ones that left beds empty
-            # continue
         acc = tuple(min(options[i], s[0][i]) for i in range(I))
         accs.add(acc)
     return accs
 
-
-def P_1(llegan):
-    # completar acá con algo más real
-    if llegan == 1:
-        return 0.5
-    if llegan == 2:
-        return 0.5
-    return 0
+def P_1(llegan, i):
+    return dic2.get((llegan, i), 0)
 
 ### hashing probabilities
 ### calculation is very expensive
-exponential = [expon.cdf(1, scale=5*(i+1)) for i in range(I)]
+exponential = [expon.cdf(1, scale=1/(DEPARTURE_RATE_PER_DAY[i])) for i in range(I)]
+
+
+dic2 = {}
+for i in range(I):
+    for j in range(E * 2):
+        dic2[(j, i)] = poisson.pmf(j, ARRIVAL_RATE_PER_DAY[i])
 
 dic = {}
 for i in range(I):
@@ -87,20 +76,6 @@ def P_2(w1, a, i):
     return dic.get((a - w1, i), 0)
 
 
-    # p = exponential[i]
-    # dic[(w1, a, i)] = dic.get((w1, a, i), 0) + 1
-    # return binom.pmf(w1, a, p)
-    
-
-# def a(i, w, x):
-#     return w[i] + sum(x[i][j] for j in range(len('urgente', 'no-urgente')))
-
-
-# def P_2(s1, i, x):
-#     g = s1[1][i]
-#     a = sum([x[i][j] for j in range(len(('urgente', 'no-urgente')))])
-#     return Pri(r, a)
-
 
 def P(s1, s, x):
     def a(i):
@@ -109,31 +84,19 @@ def P(s1, s, x):
     # probabilidad cola	
     for i in range(I):
         u, u1 = s[0], s1[0]
-        p *= P_1(u[i] - x[i] - u1[i])
+        p *= P_1(u[i] - x[i] - u1[i], i)
     # probabilidad ocupados
     w1 = s1[1]
     for i in range(I):
         p *= P_2(w1[i], a(i), i)
-    # if p != 0:
-    #     print(p)
     return p
-    # return poisson.pmf(x, 1/2.58/20, 0)
 
 
 def c(s,x):
-    if sum(s[0]) - sum(x) < 0:
-        print(s[0])
-        print(x)
-        # print(list(zip(*x))[0], 'blabla')
-        raise Exception
-    # cost = 0
-    # cost += k(lengths[0] - sum(x_trasp[0])) 
-    # cost += h(lengths[1] - sum(x_trasp[1]))
     c = 0
     for i in range(I):
-        c += h(i, sum(s[0]) - sum(x))
+        c += h(i, s[0][i] - x[i])
     return c
-    # return k(lengths[0] - sum(x_trasp[0])) + h(lengths[1] - sum(x_trasp[1]))
 
 
 def limit(epsilon, lambd):
@@ -141,25 +104,22 @@ def limit(epsilon, lambd):
 
 
 
-
 def value_iteration(epsilon, lambd):
     def Esp(s, x):
         ps = np.empty(states_size)
         for i in range(states_size):
-            # if S[i][1] 
             ps[i] = P(S[i], s, x)
-        # ps = np.array([P(S[i], s, x) for i in range(states_size)])
         return np.dot(Vn, ps)
-        # return sum(P(S[i], s, x) * Vn[i] for i in range(states_size))
     Vn = np.full((states_size, ), 100)
     Vn1 = np.empty((states_size, ))
     lim = limit(epsilon, lambd)
+    iteraciones = 0
     while True:
         for i in range(states_size):
-            # print('whaat')
             s = S[i]
             best = min((c(s, x) + lambd * Esp(s, x), x) for x in x(s))
             Vn1[i] = best[0]
+        iteraciones += 1
         diff = calculate_diff(Vn, Vn1)
         print('Diff:', diff)
         if diff < lim:
@@ -168,6 +128,7 @@ def value_iteration(epsilon, lambd):
         np.copyto(Vn, Vn1)
 
     Vn = Vn1
+    print('iteraciones', iteraciones)
     return [min((c(s, x) + lambd * Esp(s, x), x) for x in x(s)) for s in S]
 
 
@@ -176,14 +137,9 @@ s = [
     tuple([0 for i in range(I)])
 ]
 
-# for i in range(15):
-#     print(P_2(0,7,i))
-# print(*sorted(x(s)), sep='\n')
-# S()
 print('beds:', E)
 print('patient types:', I)
 print('number of actions:', len(x(s)))
-# print(limit(0.3,0.9))
 
 S = state_generator()
 states_size = len(S)
@@ -228,16 +184,11 @@ def all_type_waiting(s):
 
 cont = 0
 for i in range(states_size):
-    # for i in range(I)
     s = S[i]
     if occupied(s) < E - 1 and all_type_waiting(s):
         cont += 1
         print_results(d[i], S[i])
         if cont == 10: break
-
-    # if sum(d[i]) + sum(S[i][1]) != E and sum(S[i][0]) > :
-
-# print(*sorted(state_generator()), sep='\n')
 
 
 
